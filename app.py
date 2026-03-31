@@ -1,11 +1,38 @@
 """タスク管理ツール — 制作進行管理"""
 import os
 import sqlite3
+from functools import wraps
 from datetime import datetime, date
-from flask import Flask, render_template, request, jsonify, g
+from flask import Flask, render_template, request, jsonify, g, Response, session, redirect, url_for
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.secret_key = os.urandom(24)
+
+# 管理者パスワード（変更してください）
+ADMIN_PASSWORD = "taniitools2026"
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get("authed"):
+            return f(*args, **kwargs)
+        return redirect("/login")
+    return decorated
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        if request.form.get("pw") == ADMIN_PASSWORD:
+            session["authed"] = True
+            return redirect("/")
+        return '<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>パスワードが違います</h2><a href="/login">戻る</a></body></html>'
+    return '''<html><body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#f9f9f8">
+    <form method="post" style="background:#fff;padding:32px;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,.08);text-align:center">
+    <h2 style="margin-bottom:16px;font-size:18px">タスク管理ツール</h2>
+    <input name="pw" type="password" placeholder="パスワード" style="padding:8px 16px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:200px" autofocus>
+    <button style="margin-left:8px;padding:8px 20px;background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">ログイン</button>
+    </form></body></html>'''
 DB_PATH = os.path.join(os.path.dirname(__file__), "data.db")
 
 
@@ -50,6 +77,7 @@ def init_db():
             figma_stored INTEGER DEFAULT 0,
             zac_url TEXT DEFAULT '',
             sales_person TEXT DEFAULT '',
+            sort_order INTEGER DEFAULT 0,
             memo TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
@@ -73,6 +101,7 @@ def init_db():
             outsource_amount INTEGER DEFAULT 0,
             outsource_zac_url TEXT DEFAULT '',
             outsource_backlog_label TEXT DEFAULT '',
+            due_note TEXT DEFAULT '',
             outsource_backlog_url TEXT DEFAULT '',
             order_due_date TEXT DEFAULT '',
             invoice_due_date TEXT DEFAULT '',
@@ -135,6 +164,17 @@ def init_db():
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
         );
 
+        -- 共有リンク
+        CREATE TABLE IF NOT EXISTS share_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT UNIQUE NOT NULL,
+            target_type TEXT NOT NULL DEFAULT 'project',
+            target_id INTEGER NOT NULL,
+            mode TEXT NOT NULL DEFAULT 'view',
+            active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         -- 日報
         CREATE TABLE IF NOT EXISTS daily_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +199,9 @@ def init_db():
         "ALTER TABLE deliverables ADD COLUMN outsource_zac_url TEXT DEFAULT ''",
         "ALTER TABLE deliverables ADD COLUMN outsource_backlog_label TEXT DEFAULT ''",
         "ALTER TABLE projects ADD COLUMN sales_person TEXT DEFAULT ''",
+        "ALTER TABLE deliverables ADD COLUMN due_note TEXT DEFAULT ''",
+        "ALTER TABLE projects ADD COLUMN sort_order INTEGER DEFAULT 0",
+        "ALTER TABLE clients ADD COLUMN estimate_url TEXT DEFAULT ''",
     ]:
         try:
             db.execute(stmt)
@@ -168,6 +211,20 @@ def init_db():
 
 
 # ======================= Routes =======================
+
+@app.before_request
+def check_auth():
+    # ローカルからのアクセスは認証不要
+    if request.remote_addr in ('127.0.0.1', '::1'):
+        return None
+    # 認証不要: ログイン画面、共有ページ、静的ファイル
+    exempt = ['/login', '/share/']
+    if any(request.path.startswith(p) for p in exempt):
+        return None
+    if request.path == '/favicon.ico':
+        return None
+    if not session.get("authed"):
+        return redirect("/login")
 
 @app.route("/")
 def index():
@@ -271,9 +328,12 @@ def create_client():
 def update_client(cid):
     db = get_db()
     d = request.get_json()
-    db.execute("UPDATE clients SET name=? WHERE id=?", (d["name"], cid))
+    db.execute("UPDATE clients SET name=?, estimate_url=? WHERE id=?",
+               (d.get("name", ""), d.get("estimate_url", ""), cid))
     db.commit()
     return jsonify({"ok": True})
+
+
 
 
 @app.route("/api/clients/<int:cid>", methods=["DELETE"])
@@ -343,10 +403,21 @@ def delete_project(pid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/projects/reorder", methods=["POST"])
+def reorder_projects():
+    db = get_db()
+    d = request.get_json()
+    for item in d.get("order", []):
+        db.execute("UPDATE projects SET sort_order=? WHERE id=?", (item["sort_order"], item["id"]))
+    db.commit()
+    return jsonify({"ok": True})
+
+
 # --- Deliverables CRUD ---
 
 PHASE_BALL_MAP = {
     "未着手": "自分",
+    "見積中": "自分",
     "素材待ち": "先方",
     "構成": "自分",
     "発注": "自分",
@@ -405,12 +476,12 @@ def create_deliverable():
                   designer, coder, sales_person, outsource_name, outsource_amount, outsource_zac_url, outsource_backlog_label, outsource_status, outsource_backlog_url,
                   order_due_date, invoice_due_date,
                   progress, urgent, urgent_note, remind_time, memo)
-                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                (d["project_id"], d["type"], d.get("spec", ""), phase,
                 d.get("due_date", ""), ball, date.today().isoformat(),
                 d.get("designer", ""), d.get("coder", ""), d.get("sales_person", ""),
-                d.get("outsource_name", ""), d.get("outsource_amount", 0), d.get("outsource_zac_url", ""),
-                d.get("outsource_backlog_label", ""), d.get("outsource_status", ""), d.get("outsource_backlog_url", ""),
+                d.get("outsource_name", ""), d.get("outsource_amount", 0), d.get("outsource_zac_url", ""), d.get("outsource_backlog_label", ""),
+                d.get("outsource_status", ""), d.get("outsource_backlog_url", ""),
                 d.get("order_due_date", ""), d.get("invoice_due_date", ""),
                 d.get("progress", ""),
                 d.get("urgent", 0), d.get("urgent_note", ""),
@@ -457,7 +528,7 @@ def update_deliverable(did):
                   designer=?, coder=?, sales_person=?, outsource_name=?, outsource_amount=?, outsource_zac_url=?, outsource_backlog_label=?, outsource_status=?, outsource_backlog_url=?,
                   order_due_date=?, invoice_due_date=?,
                   progress=?,
-                  urgent=?, urgent_note=?, remind_time=?, done=?, memo=?
+                  urgent=?, urgent_note=?, remind_time=?, done=?, memo=?, due_note=?
                   WHERE id=?""",
                (d.get("type", old["type"]), d.get("spec", old["spec"]),
                 new_phase, d.get("due_date", old["due_date"]), ball, ball_since,
@@ -475,7 +546,8 @@ def update_deliverable(did):
                 d.get("urgent", old["urgent"]),
                 d.get("urgent_note", old["urgent_note"]),
                 d.get("remind_time", old["remind_time"]),
-                done, d.get("memo", old["memo"]), did))
+                done, d.get("memo", old["memo"]),
+                d.get("due_note", old["due_note"] if "due_note" in old.keys() else ""), did))
     db.commit()
     return jsonify({"ok": True})
 
@@ -783,7 +855,112 @@ def complete_quick_task(qid):
     return jsonify({"ok": True})
 
 
+import secrets as _secrets
+import json as _json_mod
+
+# ===== Share Links API =====
+@app.route("/api/share-links", methods=["GET"])
+def list_share_links():
+    db = get_db()
+    rows = db.execute("SELECT * FROM share_links ORDER BY created_at DESC").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/share-links", methods=["POST"])
+def create_share_link():
+    db = get_db()
+    d = request.get_json()
+    token = _secrets.token_urlsafe(16)
+    db.execute("INSERT INTO share_links (token, target_type, target_id, mode) VALUES (?,?,?,?)",
+               (token, d.get("target_type", "project"), d["target_id"], d.get("mode", "view")))
+    db.commit()
+    return jsonify({"ok": True, "token": token})
+
+@app.route("/api/share-links/<int:sid>", methods=["DELETE"])
+def delete_share_link(sid):
+    db = get_db()
+    db.execute("DELETE FROM share_links WHERE id=?", (sid,))
+    db.commit()
+    return jsonify({"ok": True})
+
+@app.route("/api/share-links/<int:sid>/toggle", methods=["POST"])
+def toggle_share_link(sid):
+    db = get_db()
+    row = db.execute("SELECT active FROM share_links WHERE id=?", (sid,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    db.execute("UPDATE share_links SET active=? WHERE id=?", (0 if row["active"] else 1, sid))
+    db.commit()
+    return jsonify({"ok": True})
+
+# ===== Shared View =====
+@app.route("/share/<token>")
+@app.route("/api/last-upload")
+def last_upload():
+    path = os.path.join(os.path.dirname(__file__), ".last_upload")
+    if os.path.exists(path):
+        with open(path) as f:
+            return jsonify({"time": f.read().strip()})
+    return jsonify({"time": ""})
+
+@app.route("/api/export-html", methods=["POST"])
+def export_html():
+    import subprocess
+    result = subprocess.run(["python3", os.path.join(os.path.dirname(__file__), "export_html.py")],
+                          capture_output=True, text=True, cwd=os.path.dirname(__file__))
+    if result.returncode == 0:
+        return jsonify({"ok": True, "message": result.stdout.strip()})
+    return jsonify({"ok": False, "error": result.stderr or result.stdout}), 500
+
+
+@app.route("/share/<token>")
+def shared_view(token):
+    db = get_db()
+    link = db.execute("SELECT * FROM share_links WHERE token=? AND active=1", (token,)).fetchone()
+    if not link:
+        return "<h2>このリンクは無効です</h2>", 404
+
+    target_type = link["target_type"]
+    target_id = link["target_id"]
+    mode = link["mode"]
+
+    if target_type == "project":
+        project = db.execute("""SELECT p.*, c.name as client_name FROM projects p
+                               JOIN clients c ON p.client_id=c.id WHERE p.id=?""", (target_id,)).fetchone()
+        if not project:
+            return "<h2>案件が見つかりません</h2>", 404
+        projects = [dict(project)]
+        deliverables = [dict(r) for r in db.execute(
+            "SELECT * FROM deliverables WHERE project_id=? ORDER BY done ASC, urgent DESC", (target_id,)).fetchall()]
+        gantt_rows = [dict(r) for r in db.execute(
+            "SELECT * FROM gantt_rows WHERE project_id=? ORDER BY sort_order", (target_id,)).fetchall()]
+        title = f"{project['client_name']} — {project['name']}"
+    else:  # client
+        projects_raw = db.execute("""SELECT p.*, c.name as client_name FROM projects p
+                                    JOIN clients c ON p.client_id=c.id
+                                    WHERE p.client_id=? AND p.status != '完了'
+                                    ORDER BY p.created_at DESC""", (target_id,)).fetchall()
+        projects = [dict(r) for r in projects_raw]
+        pids = [p["id"] for p in projects]
+        deliverables = []
+        gantt_rows = []
+        for pid in pids:
+            deliverables += [dict(r) for r in db.execute(
+                "SELECT * FROM deliverables WHERE project_id=? ORDER BY done ASC, urgent DESC", (pid,)).fetchall()]
+            gantt_rows += [dict(r) for r in db.execute(
+                "SELECT * FROM gantt_rows WHERE project_id=? ORDER BY sort_order", (pid,)).fetchall()]
+        client = db.execute("SELECT name FROM clients WHERE id=?", (target_id,)).fetchone()
+        title = client["name"] if client else "クライアント"
+
+    return render_template("share.html",
+                           title=title,
+                           projects=projects,
+                           deliverables=_json_mod.dumps(deliverables, ensure_ascii=False),
+                           gantt_rows=_json_mod.dumps(gantt_rows, ensure_ascii=False),
+                           mode=mode,
+                           target_type=target_type)
+
+
 init_db()
 
 if __name__ == "__main__":
-    app.run(debug=False, host="127.0.0.1", port=5052)
+    app.run(debug=False, host="0.0.0.0", port=5052)

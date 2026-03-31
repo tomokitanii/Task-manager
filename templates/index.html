@@ -61,7 +61,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 .out-menu.on{display:block}
 
 /* Phase colors — 落ち着いたトーン */
-.pc-未着手{background:#e8e8e5;color:#666}.pc-素材待ち{background:#f5a623;color:#fff}.pc-構成{background:#4a90d9;color:#fff}
+.pc-未着手{background:#e8e8e5;color:#666}.pc-見積中{background:#f5a623;color:#fff}.pc-素材待ち{background:#f5a623;color:#fff}.pc-構成{background:#4a90d9;color:#fff}
 .pc-発注{background:#e53935;color:#fff}.pc-請求処理{background:#f5a623;color:#fff}.pc-デザイン{background:#d45d79;color:#fff}.pc-ナレーション{background:#9c27b0;color:#fff}.pc-校正{background:#e6a817;color:#fff}.pc-検品{background:#e6a817;color:#fff}.pc-社内確認{background:#e6a817;color:#fff}
 .pc-校正\/検品{background:#e6a817;color:#fff}.pc-先方確認{background:#f5a623;color:#fff}.pc-最終確認{background:#f5a623;color:#fff}
 .pc-修正{background:#d45d79;color:#fff}.pc-FIX{background:#4caf50;color:#fff}.pc-コーディング{background:#4a90d9;color:#fff}
@@ -164,6 +164,8 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 .proj-card{margin-bottom:12px;background:#fff;border-radius:10px;border:1px solid #e8e8e5;overflow:visible;transition:box-shadow .15s}
 .proj-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .proj-card.done{opacity:.6}
+.proj-card[draggable]{cursor:grab}
+.proj-card[draggable]:active{cursor:grabbing;opacity:.7}
 .proj-hdr{padding:12px 16px;cursor:pointer;user-select:none}
 .proj-hdr:hover{background:#fafbfc}
 .proj-row1{display:flex;justify-content:space-between;align-items:center}
@@ -209,6 +211,12 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 /* Done row */
 .tbl .row-done td{opacity:.5}
 .tbl .row-done .deliv-name{text-decoration:line-through}
+
+/* Due note */
+.due-note{font-size:11px;color:#1a73e8;cursor:text;border-radius:3px;padding:1px 4px;display:inline-block;min-width:20px;margin-left:2px;vertical-align:middle}
+.due-note:empty::after{content:'+';color:transparent;font-size:10px}
+.due-note:hover:empty::after{color:#bbb}
+.due-note:focus{outline:1px solid #1a73e8;background:#fff;color:#333;min-width:40px}
 
 /* Done checkbox */
 .done-cb{width:16px;height:16px;border-radius:50%;border:2px solid #ccc;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;vertical-align:middle;margin-right:6px}
@@ -258,6 +266,7 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
                 <button class="sf-btn" onclick="setProjFilter('done',this)">完了</button>
             </div>
             <button class="btn btn-p" onclick="openModal('clModal')">+ クライアント追加</button>
+            <button class="btn" onclick="openShareModal()" style="font-size:12px">🔗 共有</button>
         </div>
     </div>
     <div id="projC"></div>
@@ -317,6 +326,21 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 <div class="btn-row"><button class="btn btn-p" onclick="saveProj()">保存</button><button class="btn" style="background:#eee" onclick="closeModal('projModal')">閉じる</button><button class="btn btn-d" id="pm_del" style="display:none;margin-left:auto" onclick="delProj()">削除</button></div>
 </div></div>
 
+<!-- Share Modal -->
+<div class="modal-bg" id="shareModal" onclick="if(event.target===this)closeModal('shareModal')">
+<div class="modal" style="max-width:500px"><h2>共有リンク</h2>
+<div id="shareContent"></div>
+<div style="margin-top:12px;border-top:1px solid #eee;padding-top:12px">
+<h3 style="font-size:13px;margin-bottom:8px">新しいリンクを発行</h3>
+<div class="form-grid">
+<div class="fg"><label>対象</label><select id="sh_type" onchange="loadShareTargets()"><option value="project">案件</option><option value="client">クライアント</option></select></div>
+<div class="fg"><label>選択</label><select id="sh_target"></select></div>
+<div class="fg"><label>権限</label><select id="sh_mode"><option value="view">閲覧のみ</option><option value="edit">編集可</option></select></div>
+</div>
+<button class="btn-s" style="margin-top:8px;background:#1a73e8;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer" onclick="createShareLink()">リンクを発行</button>
+</div>
+</div></div>
+
 <!-- Deliverable Modal -->
 <div class="modal-bg" id="dModal" onclick="if(event.target===this)closeModal('dModal')">
 <div class="modal"><h2 id="dmTitle">成果物追加</h2>
@@ -324,15 +348,14 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 <div class="form-grid">
 <div class="fg"><label>種類</label><select id="dm_type"><option>バナー</option><option>LP</option><option>メルマガ</option><option>チラシ</option><option>動画</option><option>ナレーション</option><option>フォーム</option><option>その他</option></select></div>
 <div class="fg"><label>仕様</label><input id="dm_spec" placeholder="×4サイズ等"></div>
-<div class="fg"><label>期日</label><input type="date" id="dm_due"></div>
+<div class="fg"><label>発注・請求期日</label><input type="date" id="dm_due"></div>
 <div class="fg"><label>外注先名</label><input id="dm_oname" placeholder="ツクリテ等"></div>
-<div class="fg"><label>外注ステータス</label><select id="dm_out"><option value="">社内</option><option>見積中</option><option>発注前</option><option>発注申請中</option><option>発注済</option><option>請求書待</option><option>仕入済</option></select></div>
+<div class="fg"><label>外注ステータス</label><select id="dm_out"><option value="">社内</option><option>見積中</option><option>見積済</option><option>発注前</option><option>発注申請中</option><option>発注済</option><option>請求書待</option><option>仕入済</option></select></div>
 <div class="fg"><label>金額</label><input id="dm_oamt" type="number" placeholder="0"></div>
 <div class="fg"><label>外注BacklogURL</label><input id="dm_obl" placeholder="https://dennoutai.backlog.com/view/..."></div>
 <div class="fg"><label>ZAC発注URL</label><input id="dm_ozac" placeholder="https://oro.zac.ai/..."></div>
 <div class="fg"><label>担当デザイナー</label><input id="dm_des"></div>
 <div class="fg"><label>担当コーダー</label><input id="dm_cod"></div>
-<div class="fg"><label>担当営業</label><input id="dm_sales"></div>
 <div class="fg full"><label>緊急</label><div style="display:flex;gap:6px;align-items:center"><label style="font-size:12px;display:flex;align-items:center;gap:3px"><input type="checkbox" id="dm_urg">緊急</label><input id="dm_urgn" placeholder="AM対応等" style="flex:1;font-size:11px;padding:3px 6px;border:1px solid #e0e0dd;border-radius:4px"><input id="dm_rtime" placeholder="10:00" style="width:60px;font-size:11px;padding:3px 6px;border:1px solid #e0e0dd;border-radius:4px"></div></div>
 <div class="fg full"><label>メモ</label><textarea id="dm_memo"></textarea></div>
 </div>
@@ -344,7 +367,7 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 <div class="modal" style="max-width:380px"><h2 id="odTitle">発注・請求管理</h2>
 <input type="hidden" id="od_id">
 <div class="form-grid">
-<div class="fg"><label>外注ステータス</label><select id="od_status"><option value="">社内</option><option>見積中</option><option>発注前</option><option>発注申請中</option><option>発注済</option><option>請求書待</option><option>仕入済</option></select></div>
+<div class="fg"><label>外注ステータス</label><select id="od_status"><option value="">社内</option><option>見積中</option><option>見積済</option><option>発注前</option><option>発注申請中</option><option>発注済</option><option>請求書待</option><option>仕入済</option></select></div>
 <div class="fg"><label>担当</label><input id="od_who" readonly style="background:#f7f7f5;color:#888"></div>
 <div class="fg"><label>発注期日</label><input type="date" id="od_order"></div>
 <div class="fg"><label>請求期日</label><input type="date" id="od_invoice"></div>
@@ -393,10 +416,10 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 <script>
 const TABS=['dash','proj','gantt','monthly','daily'];
 // フェーズ定義（成果物タイプ別）
-const PHASES_BASE=['未着手','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','請求処理','完了'];
-const PHASES_LP=['未着手','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','公開','請求処理','完了'];
-const PHASES_MAIL=['未着手','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','事務局確認','配信','請求処理','完了'];
-const PHASES_VIDEO=['未着手','素材待ち','構成','発注','ナレーション','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','請求処理','完了'];
+const PHASES_BASE=['未着手','見積中','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','請求処理','完了'];
+const PHASES_LP=['未着手','見積中','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','公開','請求処理','完了'];
+const PHASES_MAIL=['未着手','見積中','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','事務局確認','配信','請求処理','完了'];
+const PHASES_VIDEO=['未着手','見積中','素材待ち','構成','発注','ナレーション','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','請求処理','完了'];
 function getPhasesForType(type){
     if(type==='LP')return PHASES_LP;
     if(type==='メルマガ')return PHASES_MAIL;
@@ -404,7 +427,7 @@ function getPhasesForType(type){
     return PHASES_BASE;
 }
 const PHASES=PHASES_LP; // fallback for dashboard
-const PH_DOTS={'未着手':'#999','素材待ち':'#f5a623','構成':'#4a90d9','発注':'#e53935','請求処理':'#f5a623','ナレーション':'#9c27b0','デザイン':'#d45d79','校正':'#e6a817','検品':'#e6a817','社内確認':'#e6a817','先方確認':'#f5a623','最終確認':'#f5a623','修正':'#d45d79','FIX':'#4caf50','コーディング':'#4a90d9','入稿':'#4caf50','公開':'#2e7d32','事務局確認':'#f5a623','配信':'#2e7d32','完了':'#ccc'};
+const PH_DOTS={'未着手':'#999','見積中':'#f5a623','素材待ち':'#f5a623','構成':'#4a90d9','発注':'#e53935','請求処理':'#f5a623','ナレーション':'#9c27b0','デザイン':'#d45d79','校正':'#e6a817','検品':'#e6a817','社内確認':'#e6a817','先方確認':'#f5a623','最終確認':'#f5a623','修正':'#d45d79','FIX':'#4caf50','コーディング':'#4a90d9','入稿':'#4caf50','公開':'#2e7d32','事務局確認':'#f5a623','配信':'#2e7d32','完了':'#ccc'};
 const OUT_OPTS=['','社内','見積中','発注前','発注申請中','発注済','請求書待','仕入済'];
 let curClient=null,memoTargetId=null;
 
@@ -555,20 +578,20 @@ function toggleTimePicker(id){document.querySelectorAll('.tp-menu.on').forEach(m
 async function setRemind(did,val){document.querySelectorAll('.tp-menu.on').forEach(m=>m.classList.remove('on'));await upD(did,'remind_time',val)}
 
 function dTbl(items,isUrg){
-    let h='<table class="tbl"><thead><tr><th></th><th>期日</th><th>案件</th><th>成果物</th><th>フェーズ</th><th>ボール</th><th>進捗</th><th>メモ</th></tr></thead><tbody>';
+    let h='<table class="tbl"><thead><tr><th></th><th>期日</th><th>案件</th><th>成果物</th><th>フェーズ</th><th>ボール</th><th>進捗</th><th></th></tr></thead><tbody>';
     items.forEach(t=>{
         const memoEsc=esc(t.memo);
         h+='<tr class="'+(t.urgent?'row-urg':'')+'" data-did="'+t.id+'">';
         // 緊急トグル
         h+='<td style="width:20px;text-align:center;cursor:pointer;font-size:12px" onclick="toggleUrgent('+t.id+','+(!t.urgent?1:0)+')" title="'+(t.urgent?'緊急を解除':'緊急にする')+'">'+(t.urgent?'🔥':'○')+'</td>';
         // 期日
-        h+='<td data-col="0" data-field="due_date" data-did="'+t.id+'" style="white-space:nowrap;position:relative">'+dueHtml(t.due_date)+'<input type="date" value="'+(t.due_date||'')+'" style="position:absolute;opacity:0;width:0;height:0" onchange="upD('+t.id+',\'due_date\',this.value)">'+(t.urgent?'<div style="margin-top:2px">'+timePickerHtml(t.id,t.remind_time)+'</div>':'')+'</td>';
-        h+='<td data-col="1" data-field="project" data-did="'+t.id+'" style="cursor:pointer" onclick="goToProj('+t.project_id+','+t.id+')"><span style="color:#1a73e8">'+t.project_name+'</span><br><span style="font-size:11px;color:#aaa">'+t.client_name+'</span></td>';
+        h+='<td data-col="0" data-field="due_date" data-did="'+t.id+'" style="white-space:nowrap;position:relative">'+dueHtml(t.due_date)+(t.due_note?'<span class="due-note" contenteditable="true" onclick="event.stopPropagation()" onblur="upD('+t.id+',\'due_note\',this.textContent.trim())">'+t.due_note+'</span>':'')+(t.urgent?' '+timePickerHtml(t.id,t.remind_time):'')+'<input type="date" value="'+(t.due_date||'')+'" style="position:absolute;opacity:0;width:0;height:0" onchange="upD('+t.id+',\'due_date\',this.value)"></td>';
+        h+='<td style="cursor:pointer" onclick="goToProj('+t.project_id+','+t.id+')"><span style="color:#1a73e8">'+t.project_name+'</span></td>';
         h+='<td data-col="2" data-field="type" data-did="'+t.id+'"><span style="font-weight:600">'+t.type+'</span>'+(t.spec?' <span style="color:#888;font-size:12px">'+t.spec+'</span>':'')+'</td>';
         h+='<td data-col="3" data-field="phase" data-did="'+t.id+'" data-dtype="'+t.type+'">'+phCell(t.id,t.phase,t.type)+'</td>';
         h+='<td data-col="4" data-field="ball" data-did="'+t.id+'" style="white-space:nowrap">'+t.ball+'</td>';
         h+='<td data-col="5" data-field="progress" data-did="'+t.id+'" style="color:#333;font-weight:600;white-space:nowrap">'+(t.progress||'')+'</td>';
-        h+='<td data-col="6" data-field="memo" data-did="'+t.id+'" style="font-size:12px;color:#888;max-width:100px;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openMemo('+t.id+',\'メモ\',\''+memoEsc+'\')">'+(t.memo||'—')+'</td>';
+        h+='<td style="text-align:center"><span style="cursor:pointer;font-size:11px;font-weight:700;color:'+(t.memo?'#1a73e8':'#bbb')+';border:1px solid '+(t.memo?'#1a73e8':'#ddd')+';border-radius:3px;padding:1px 5px" onclick="openMemo('+t.id+',\'メモ\',\''+memoEsc+'\')" title="'+(t.memo?esc(t.memo.substring(0,30)):'メモなし')+'">メモ</span></td>';
         h+='</tr>';
     });
     return h+'</tbody></table>'}
@@ -609,13 +632,31 @@ async function loadProj(){
         if(projFilter==='done')return p.status==='完了';
         return true;
     });
+    // ソート: 保留を下に、sort_order順
+    filtered.sort((a,b)=>{
+        const ah=a.status==='保留'?1:0, bh=b.status==='保留'?1:0;
+        if(ah!==bh)return ah-bh;
+        return(a.sort_order||0)-(b.sort_order||0);
+    });
     // 「その他」を最後にソート
     const grouped={};filtered.forEach(p=>{(grouped[p.client_name]=grouped[p.client_name]||[]).push(p)});
     const sortedKeys=Object.keys(grouped).sort((a,b)=>{if(a==='その他')return 1;if(b==='その他')return-1;return 0});
     for(const cn of sortedKeys){
         const cps=grouped[cn];
         const clObj=clients.find(x=>x.name===cn);
-        h+='<div style="margin-bottom:20px"><div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;color:#999;letter-spacing:.3px;margin-bottom:8px;padding:0 4px">'+cn+(clObj?'<span class="btn-s" style="font-size:11px;font-weight:400;color:#aaa" onclick="openProjModalFor('+clObj.id+')">+ 案件追加</span>':'')+'</div>';
+        const estUrl=clObj&&clObj.estimate_url?clObj.estimate_url:'';
+        h+='<div style="margin-bottom:20px"><div style="display:flex;align-items:center;font-size:13px;font-weight:700;color:#999;letter-spacing:.3px;margin-bottom:8px;padding:0 4px;gap:6px">';
+        // クライアント名（ダブルクリックで編集）
+        if(clObj)h+='<span ondblclick="editClientName('+clObj.id+',this)" style="cursor:default" title="ダブルクリックで名前変更">'+cn+'</span>';
+        else h+='<span>'+cn+'</span>';
+        if(estUrl)h+='<a href="'+estUrl+'" target="_blank" oncontextmenu="event.preventDefault();editClientEstimate('+clObj.id+')" style="font-size:11px;font-weight:400;color:#0f9d58;text-decoration:none;border:1px solid #0f9d58;border-radius:3px;padding:1px 6px" title="見積もりシート（右クリックで編集）">📊 見積</a>';
+        else if(clObj)h+='<span style="font-size:11px;font-weight:400;color:#ccc;border:1px solid #e0e0e0;border-radius:3px;padding:1px 6px;cursor:pointer" onclick="editClientEstimate('+clObj.id+')" title="見積もりURLを設定">📊</span>';
+        // 共有HTML更新ボタン（クライアントごと）
+        if(clObj)h+='<span style="font-size:11px;font-weight:400;color:#1a73e8;border:1px solid #d4e4f7;border-radius:3px;padding:1px 6px;cursor:pointer" onclick="exportHtml()" title="テストサーバーに共有">📤 共有</span>';
+        h+='<span id="lastUpload" style="font-size:10px;color:#aaa;font-weight:400"></span>';
+        h+='<span style="margin-left:auto"></span>';
+        if(clObj)h+='<span class="btn-s" style="font-size:11px;font-weight:400;color:#aaa" onclick="openProjModalFor('+clObj.id+')">+ 案件追加</span>';
+        h+='</div>';
         for(const p of cps){
             const pd=delivs.filter(d=>d.project_id===p.id).sort((a,b)=>{
                 const ad=a.done||a.phase==='完了'?1:0, bd=b.done||b.phase==='完了'?1:0;
@@ -627,7 +668,7 @@ async function loadProj(){
             const isOpen=openProjects.has(p.id);
             const outDelivs=pd.filter(d=>d.outsource_status&&d.outsource_status!=='社内'&&d.outsource_status!=='');
 
-            h+='<div class="proj-card'+(isDone?' done':'')+(isOpen?' open':'')+'" id="pd-'+p.id+'">';
+            h+='<div class="proj-card'+(isDone?' done':'')+(isOpen?' open':'')+'" id="pd-'+p.id+'" draggable="true" ondragstart="projDragStart(event,'+p.id+')" ondragover="projDragOver(event)" ondrop="projDrop(event,'+p.id+')" ondragleave="this.style.borderTop=\'\'">';
             // === Header (clickable to toggle) ===
             h+='<div class="proj-hdr" onclick="toggleProjCard('+p.id+')">';
             // Row 1: 案件名 + ステータス + 進捗 + 期日
@@ -664,17 +705,17 @@ async function loadProj(){
             function eLink(url,label,editType,editId,icon){
                 const uid='el_'+editType+'_'+editId+'_'+Math.random().toString(36).slice(2,6);
                 let h='<span style="position:relative;display:inline-block">';
-                if(url) h+='<a href="'+url+'" target="_blank" class="proj-link" onclick="event.stopPropagation()">'+icon+label+'<span class="lnk-edit" onclick="event.preventDefault();event.stopPropagation();toggleLinkPop(\''+uid+'\',\''+esc(url)+'\',\''+esc(label)+'\')">✏</span></a>';
-                else h+='<span class="proj-link" style="color:#888">'+icon+label+'<span class="lnk-edit" onclick="event.stopPropagation();toggleLinkPop(\''+uid+'\',\'\',\''+esc(label)+'\')">✏</span></span>';
+                if(url) h+='<a href="'+url+'" target="_blank" class="proj-link" onclick="event.stopPropagation()" oncontextmenu="event.preventDefault();event.stopPropagation();toggleLinkPop(\''+uid+'\',\''+esc(url)+'\',\''+esc(label)+'\')">'+icon+label+'</a>';
+                else h+='<span class="proj-link" style="color:#888" oncontextmenu="event.preventDefault();event.stopPropagation();toggleLinkPop(\''+uid+'\',\'\',\''+esc(label)+'\')">'+icon+label+'</span>';
                 h+='<div class="link-pop" id="'+uid+'"><input placeholder="URL" id="'+uid+'_url"><input placeholder="名前" id="'+uid+'_name"><div class="lp-row"><button class="lp-btn lp-save" onclick="saveLinkPop(\''+uid+'\',\''+editType+'\','+editId+')">保存</button><button class="lp-btn lp-del" onclick="delLinkPop(\''+editType+'\','+editId+')">削除</button><button class="lp-btn lp-cancel" onclick="document.getElementById(\''+uid+'\').classList.remove(\'on\')">閉じる</button></div></div>';
                 h+='</span>';
                 return h;
             }
 
+            h+='<span class="proj-link" style="cursor:pointer" onclick="event.stopPropagation();goToGantt('+p.id+')">📊 ガント</span>';
             if(p.zac_number){
                 h+=eLink(p.zac_url,'zac:'+p.zac_number,'proj_zac',p.id,'');
             }
-            h+='<span class="proj-link" style="cursor:pointer" onclick="event.stopPropagation();goToGantt('+p.id+')">📊 ガント</span>';
             if(p.backlog_url) h+=eLink(p.backlog_url,'親','proj_bl',p.id,'<span class="bl-b">B</span>');
             if(p.backlog_url_outsource) h+=eLink(p.backlog_url_outsource,'外注','proj_blo',p.id,'<span class="bl-b">B</span>');
             // 成果物ごとの外注Backlog
@@ -693,21 +734,21 @@ async function loadProj(){
             h+='</div>';
             // === 成果物テーブル ===
             if(pd.length){
-                h+='<table class="tbl"><thead><tr><th>期日</th><th>成果物</th><th>フェーズ</th><th>ボール</th><th>進捗</th><th style="width:30%">メモ</th><th style="text-align:right"><span style="cursor:pointer;color:#1a73e8;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0" onclick="openDelivModal('+p.id+')">+ 追加</span></th></tr></thead><tbody>';
+                h+='<table class="tbl"><thead><tr><th>期日</th><th>成果物</th><th>フェーズ</th><th>ボール</th><th>進捗</th><th style="text-align:right"><span style="cursor:pointer;color:#1a73e8;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0" onclick="openDelivModal('+p.id+')">+ 追加</span></th></tr></thead><tbody>';
                 pd.forEach(d=>{
                     const memoEsc=esc(d.memo);
                     const urgBadge=d.urgent?' <span class="badge b-urg">'+(d.urgent_note||'緊急')+(d.remind_time?' '+d.remind_time:'')+'</span>':'';
                     const rowCls=(d.done||d.phase==='完了')?'row-done':(d.urgent?'row-urg':'');
                     h+='<tr class="'+rowCls+'" data-did="'+d.id+'">';
-                    h+='<td data-col="0" data-field="due_date" data-did="'+d.id+'" style="white-space:nowrap;position:relative"><span class="done-cb'+(d.done?' checked':'')+'" onclick="event.stopPropagation();toggleDone('+d.id+','+(!d.done)+')"></span>'+dueHtml(d.due_date)+'<input type="date" value="'+(d.due_date||'')+'" style="position:absolute;opacity:0;width:0;height:0" onchange="upD('+d.id+',\'due_date\',this.value)"></td>';
+                    h+='<td data-col="0" data-field="due_date" data-did="'+d.id+'" style="white-space:nowrap;position:relative"><span class="done-cb'+(d.done?' checked':'')+'" onclick="event.stopPropagation();toggleDone('+d.id+','+(!d.done)+')"></span>'+dueHtml(d.due_date)+'<input type="date" value="'+(d.due_date||'')+'" style="position:absolute;opacity:0;width:0;height:0" onchange="upD('+d.id+',\'due_date\',this.value)"><span class="due-note" contenteditable="true" onclick="event.stopPropagation()" onblur="upD('+d.id+',\'due_note\',this.textContent.trim())">'+(d.due_note||'')+'</span></td>';
                     let outBadge='';
                     if(d.outsource_status){
-                        const oc=d.outsource_status==='発注前'||d.outsource_status==='見積中'||d.outsource_status==='発注申請中'?'#e53935':d.outsource_status==='発注済'||d.outsource_status==='仕入済'?'#4caf50':d.outsource_status==='請求書待'?'#f5a623':'#4a90d9';
+                        const oc=d.outsource_status==='発注前'||d.outsource_status==='見積中'||d.outsource_status==='見積済'||d.outsource_status==='発注申請中'?'#e53935':d.outsource_status==='発注済'||d.outsource_status==='仕入済'?'#4caf50':d.outsource_status==='請求書待'?'#f5a623':'#4a90d9';
                         const oid='out_'+d.id;
                         outBadge='<br><span style="position:relative;display:inline-block">';
                         // ステータス（クリック→ドロップダウン）
                         outBadge+='<span class="out-toggle" style="font-size:12px;color:'+oc+';font-weight:600;cursor:pointer" onclick="event.stopPropagation();document.getElementById(\''+oid+'_menu\').classList.toggle(\'on\')">●'+d.outsource_status+' ▾</span>';
-                        const outStatuses=['社内','見積中','発注前','発注申請中','発注済','請求書待','仕入済'];
+                        const outStatuses=['社内','見積中','見積済','発注前','発注申請中','発注済','請求書待','仕入済'];
                         outBadge+='<div class="ph-menu" id="'+oid+'_menu">';
                         outStatuses.forEach(s=>{outBadge+='<div class="ph-mi" onclick="upD('+d.id+',\'outsource_status\',\''+s+'\')">'+s+'</div>'});
                         outBadge+='</div>';
@@ -732,42 +773,12 @@ async function loadProj(){
                     h+='<td data-col="2" data-field="phase" data-did="'+d.id+'" data-dtype="'+d.type+'">'+phCell(d.id,d.phase,d.type)+'</td>';
                     h+='<td data-col="3" data-field="ball" data-did="'+d.id+'" style="white-space:nowrap">'+d.ball+'</td>';
                     h+='<td data-col="4" data-field="progress" data-did="'+d.id+'" style="color:#333;font-weight:600;white-space:nowrap">'+(d.progress||'')+'</td>';
-                    h+='<td data-col="5" data-field="memo" data-did="'+d.id+'" style="font-size:12px;color:#888;max-width:100px;overflow:hidden;text-overflow:ellipsis">'+(d.memo||'—')+'</td>';
-                    h+='<td><button class="btn-s" onclick="openDelivEdit('+d.id+')">編集</button></td>';
+                    h+='<td style="white-space:nowrap"><button class="btn-s" onclick="openDelivEdit('+d.id+')">編集</button> <span style="cursor:pointer;font-size:11px;font-weight:700;color:'+(d.memo?'#1a73e8':'#bbb')+';border:1px solid '+(d.memo?'#1a73e8':'#ddd')+';border-radius:3px;padding:1px 5px" onclick="event.stopPropagation();openMemo('+d.id+',\'メモ\',\''+memoEsc+'\')" title="'+(d.memo?esc(d.memo.substring(0,30)):'メモなし')+'">メモ</span></td>';
                     h+='</tr>';
                 });
                 h+='</tbody></table>';}
             else{h+='<div style="padding:4px 0"><button class="btn-s" onclick="openDelivModal('+p.id+')" style="font-size:11px;color:#aaa">+ 成果物を追加</button></div>'}
-            // === 下側: 発注・請求期日（orders テーブル）===
-            const pOrders=allOrders.filter(o=>o.project_id===p.id);
-            if(pOrders.length){
-            h+='<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #e0e0dd">';
-                const now=new Date();now.setHours(0,0,0,0);
-                h+='<table class="tbl"><thead><tr><th>ステータス</th><th>発注期日</th><th>請求期日</th><th>外注先</th><th>発注名</th><th>金額</th><th style="text-align:right"><span style="cursor:pointer;color:#1a73e8;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0" onclick="openOrderModal('+p.id+')">+ 追加</span></th></tr></thead><tbody>';
-                pOrders.forEach(o=>{
-                    const isPre=['発注前','発注申請中','見積中'].includes(o.outsource_status);
-                    let odSt='color:#333';
-                    if(o.order_due_date&&isPre){const dd=Math.round((new Date(o.order_due_date+'T00:00:00')-now)/864e5);odSt=dd<0?'color:#c62828;font-weight:700':'color:#e53935;font-weight:600'}
-                    let ivSt='color:#333';
-                    if(o.invoice_due_date){const dd=Math.round((new Date(o.invoice_due_date+'T00:00:00')-now)/864e5);if(dd<=7)ivSt=dd<0?'color:#c62828;font-weight:700':'color:#e65100;font-weight:600'}
-                    const amtStr=o.amount?'¥'+o.amount.toLocaleString():'—';
-                    h+='<tr>';
-                    h+='<td><span class="out-pill oc-'+o.outsource_status+'">'+o.outsource_status+'</span></td>';
-                    h+='<td style="'+odSt+'">'+(o.order_due_date?fmtD(o.order_due_date):'—')+'</td>';
-                    h+='<td style="'+ivSt+'">'+(o.invoice_due_date?fmtD(o.invoice_due_date):'—')+'</td>';
-                    if(o.backlog_url) h+='<td><a href="'+o.backlog_url+'" target="_blank" style="color:#1a73e8;text-decoration:none" onclick="event.stopPropagation()">'+o.vendor+'</a></td>';
-                    else h+='<td style="color:#888">'+o.vendor+'</td>';
-                    h+='<td style="font-weight:600">'+o.name+'</td>';
-                    if(o.zac_order_url) h+='<td><a href="'+o.zac_order_url+'" target="_blank" style="color:#1a73e8;text-decoration:none;font-weight:600" onclick="event.stopPropagation()">'+amtStr+'</a></td>';
-                    else h+='<td>'+amtStr+'</td>';
-                    h+='<td><button class="btn-s" onclick="openOrderEdit('+o.id+')" style="font-size:11px">編集</button></td>';
-                    h+='</tr>';
-                });
-                h+='</tbody></table>';
-            h+='</div>';
-            } else {
-                h+='<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e0e0dd;text-align:right"><button class="btn-s" onclick="openOrderModal('+p.id+')" style="font-size:11px;color:#aaa">+ 発注を追加</button></div>';
-            }
+            // 発注テーブル削除済み（成果物セル内に統合）
             h+='</div></div>';}
         h+='</div>';}
     if(!Object.keys(grouped).length)h='<div class="empty">'+(projFilter==='done'?'完了した案件はありません':'進行中の案件はありません')+'</div>';
@@ -918,10 +929,119 @@ async function openProjEdit(pid){const p=(await(await fetch('/api/projects')).js
 async function saveProj(){const id=document.getElementById('pm_id').value;const d={client_id:+document.getElementById('pm_cl').value,name:document.getElementById('pm_name').value.trim(),zac_number:document.getElementById('pm_zac').value,zac_url:document.getElementById('pm_zac_url').value,backlog_url:document.getElementById('pm_bl').value,backlog_url_outsource:document.getElementById('pm_blo').value,drive_url:document.getElementById('pm_drv').value,drive_url_outsource:document.getElementById('pm_drvo').value,closing_month:document.getElementById('pm_closing').value,status:document.getElementById('pm_st').value,purchased:document.getElementById('pm_pur').checked?1:0,figma_stored:document.getElementById('pm_fig').checked?1:0,sales_person:document.getElementById('pm_sales').value,memo:document.getElementById('pm_memo').value};if(!d.name)return;await fetch(id?`/api/projects/${id}`:'/api/projects',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});closeModal('projModal');toast('保存');loadProj()}
 async function delProj(){if(!confirm('削除？'))return;await fetch(`/api/projects/${document.getElementById('pm_id').value}`,{method:'DELETE'});closeModal('projModal');toast('削除');loadProj()}
 
+// ===== Export HTML =====
+async function exportHtml(){
+    const r=await fetch('/api/export-html',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){toast('共有HTML更新完了');loadLastUpload()}
+    else toast('エラー: '+d.error);
+}
+async function loadLastUpload(){
+    try{const r=await(await fetch('/api/last-upload')).json();
+    document.getElementById('lastUpload').textContent=r.time?'最終共有: '+r.time:''}catch(e){}}
+loadLastUpload();
+
+// ===== Client Name Edit =====
+async function editClientName(cid,el){
+    const clients=await(await fetch('/api/clients')).json();
+    const c=clients.find(x=>x.id===cid);
+    const name=prompt('クライアント名',c?.name||'');
+    if(name===null||!name.trim())return;
+    await fetch('/api/clients/'+cid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),estimate_url:c?.estimate_url||''})});
+    toast('保存');loadProj();loadSide();
+}
+
+// ===== Client Estimate URL =====
+async function editClientEstimate(cid){
+    const clients=await(await fetch('/api/clients')).json();
+    const c=clients.find(x=>x.id===cid);
+    const url=prompt('見積もりシートのURL',c?.estimate_url||'');
+    if(url===null)return;
+    await fetch('/api/clients/'+cid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:c.name,estimate_url:url})});
+    toast('保存');loadProj();
+}
+
+// ===== Project Drag & Drop =====
+let projDragId=null;
+function projDragStart(e,pid){projDragId=pid;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',pid)}
+function projDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';const card=e.target.closest('.proj-card');if(card)card.style.borderTop='3px solid #1a73e8'}
+async function projDrop(e,targetPid){
+    e.preventDefault();
+    document.querySelectorAll('.proj-card').forEach(c=>c.style.borderTop='');
+    if(!projDragId||projDragId===targetPid)return;
+    // 全案件を取得してsort_orderを振り直し
+    const projects=await(await fetch('/api/projects')).json();
+    const ordered=projects.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    const moved=ordered.find(p=>p.id===projDragId);
+    const remaining=ordered.filter(p=>p.id!==projDragId);
+    const targetIdx=remaining.findIndex(p=>p.id===targetPid);
+    remaining.splice(targetIdx,0,moved);
+    const order=remaining.map((p,i)=>({id:p.id,sort_order:i}));
+    await fetch('/api/projects/reorder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order})});
+    projDragId=null;toast('並べ替え');loadProj();
+}
+
+// ===== Share Links =====
+async function openShareModal(){
+    await loadShareTargets();
+    await loadShareLinks();
+    openModal('shareModal');
+}
+async function loadShareTargets(){
+    const type=document.getElementById('sh_type').value;
+    const sel=document.getElementById('sh_target');
+    if(type==='project'){
+        const ps=await(await fetch('/api/projects')).json();
+        sel.innerHTML=ps.filter(p=>p.status!=='完了').map(p=>`<option value="${p.id}">${p.client_name} — ${p.name}</option>`).join('');
+    }else{
+        const cs=await(await fetch('/api/clients')).json();
+        sel.innerHTML=cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    }
+}
+async function loadShareLinks(){
+    const links=await(await fetch('/api/share-links')).json();
+    const ps=await(await fetch('/api/projects')).json();
+    const cs=await(await fetch('/api/clients')).json();
+    let h='';
+    if(!links.length)h='<p style="color:#aaa;font-size:12px">共有リンクなし</p>';
+    else{
+        h+='<div style="display:flex;flex-direction:column;gap:8px">';
+        links.forEach(l=>{
+            let name='';
+            if(l.target_type==='project'){const p=ps.find(x=>x.id===l.target_id);name=p?p.client_name+'—'+p.name:'不明'}
+            else{const c=cs.find(x=>x.id===l.target_id);name=c?c.name:'不明'}
+            const url=location.origin+'/share/'+l.token;
+            h+='<div style="padding:8px;border:1px solid #e8e8e5;border-radius:6px;font-size:12px'+(l.active?'':';opacity:0.5')+'">';
+            h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">';
+            h+='<span style="font-weight:600">'+name+'</span>';
+            h+='<span style="padding:1px 6px;border-radius:3px;font-size:10px;'+(l.mode==='view'?'background:#e8f0fe;color:#1a73e8':'background:#e6f4ea;color:#137333')+'">'+(l.mode==='view'?'閲覧':'編集')+'</span>';
+            h+='<span style="color:#aaa">'+l.target_type+'</span>';
+            h+='</div>';
+            h+='<div style="display:flex;align-items:center;gap:4px">';
+            h+='<input value="'+url+'" readonly style="flex:1;font-size:11px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;color:#1a73e8" onclick="this.select()">';
+            h+='<button class="btn-s" onclick="navigator.clipboard.writeText(\''+url+'\');toast(\'コピー\')">コピー</button>';
+            h+='<button class="btn-s" onclick="toggleShare('+l.id+')">'+(l.active?'無効化':'有効化')+'</button>';
+            h+='<button class="btn-s" style="color:#e53935" onclick="delShare('+l.id+')">削除</button>';
+            h+='</div></div>';
+        });
+        h+='</div>';
+    }
+    document.getElementById('shareContent').innerHTML=h;
+}
+async function createShareLink(){
+    const type=document.getElementById('sh_type').value;
+    const id=+document.getElementById('sh_target').value;
+    const mode=document.getElementById('sh_mode').value;
+    await fetch('/api/share-links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:type,target_id:id,mode:mode})});
+    toast('リンク発行');loadShareLinks();
+}
+async function toggleShare(id){await fetch('/api/share-links/'+id+'/toggle',{method:'POST'});loadShareLinks()}
+async function delShare(id){if(!confirm('削除？'))return;await fetch('/api/share-links/'+id,{method:'DELETE'});toast('削除');loadShareLinks()}
+
 // ===== Deliverable Modal =====
-function openDelivModal(pid){document.getElementById('dmTitle').textContent='成果物追加';document.getElementById('dm_id').value='';document.getElementById('dm_pid').value=pid;['dm_spec','dm_due','dm_des','dm_cod','dm_sales','dm_oname','dm_obl','dm_ozac','dm_urgn','dm_rtime','dm_memo'].forEach(id=>document.getElementById(id).value='');document.getElementById('dm_oamt').value='0';document.getElementById('dm_type').value='バナー';document.getElementById('dm_out').value='';document.getElementById('dm_urg').checked=false;document.getElementById('dm_del').style.display='none';openModal('dModal')}
-async function openDelivEdit(did){const d=(await(await fetch('/api/deliverables')).json()).find(x=>x.id===did);if(!d)return;document.getElementById('dmTitle').textContent='成果物編集';document.getElementById('dm_id').value=d.id;document.getElementById('dm_pid').value=d.project_id;document.getElementById('dm_type').value=d.type;document.getElementById('dm_spec').value=d.spec;document.getElementById('dm_due').value=d.due_date||'';document.getElementById('dm_des').value=d.designer;document.getElementById('dm_cod').value=d.coder;document.getElementById('dm_sales').value=d.sales_person||'';document.getElementById('dm_oname').value=d.outsource_name||'';document.getElementById('dm_out').value=d.outsource_status;document.getElementById('dm_oamt').value=d.outsource_amount||0;document.getElementById('dm_obl').value=d.outsource_backlog_url||'';document.getElementById('dm_ozac').value=d.outsource_zac_url||'';document.getElementById('dm_urg').checked=!!d.urgent;document.getElementById('dm_urgn').value=d.urgent_note;document.getElementById('dm_rtime').value=d.remind_time;document.getElementById('dm_memo').value=d.memo;document.getElementById('dm_del').style.display='block';openModal('dModal')}
-async function saveDeliv(){const id=document.getElementById('dm_id').value;const d={project_id:+document.getElementById('dm_pid').value,type:document.getElementById('dm_type').value,spec:document.getElementById('dm_spec').value,due_date:document.getElementById('dm_due').value,designer:document.getElementById('dm_des').value,coder:document.getElementById('dm_cod').value,sales_person:document.getElementById('dm_sales').value,outsource_name:document.getElementById('dm_oname').value,outsource_status:document.getElementById('dm_out').value,outsource_amount:+document.getElementById('dm_oamt').value||0,outsource_backlog_url:document.getElementById('dm_obl').value,outsource_zac_url:document.getElementById('dm_ozac').value,urgent:document.getElementById('dm_urg').checked?1:0,urgent_note:document.getElementById('dm_urgn').value,remind_time:document.getElementById('dm_rtime').value,memo:document.getElementById('dm_memo').value};if(!id)d.phase='未着手';await fetch(id?`/api/deliverables/${id}`:'/api/deliverables',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});closeModal('dModal');toast('保存');loadProj();loadDash()}
+function openDelivModal(pid){document.getElementById('dmTitle').textContent='成果物追加';document.getElementById('dm_id').value='';document.getElementById('dm_pid').value=pid;['dm_spec','dm_due','dm_des','dm_cod','dm_oname','dm_obl','dm_ozac','dm_urgn','dm_rtime','dm_memo'].forEach(id=>document.getElementById(id).value='');document.getElementById('dm_oamt').value='0';document.getElementById('dm_type').value='バナー';document.getElementById('dm_out').value='';document.getElementById('dm_urg').checked=false;document.getElementById('dm_del').style.display='none';openModal('dModal')}
+async function openDelivEdit(did){const d=(await(await fetch('/api/deliverables')).json()).find(x=>x.id===did);if(!d)return;document.getElementById('dmTitle').textContent='成果物編集';document.getElementById('dm_id').value=d.id;document.getElementById('dm_pid').value=d.project_id;document.getElementById('dm_type').value=d.type;document.getElementById('dm_spec').value=d.spec;document.getElementById('dm_due').value=d.due_date||'';document.getElementById('dm_des').value=d.designer;document.getElementById('dm_cod').value=d.coder;document.getElementById('dm_oname').value=d.outsource_name||'';document.getElementById('dm_out').value=d.outsource_status;document.getElementById('dm_oamt').value=d.outsource_amount||0;document.getElementById('dm_obl').value=d.outsource_backlog_url||'';document.getElementById('dm_ozac').value=d.outsource_zac_url||'';document.getElementById('dm_urg').checked=!!d.urgent;document.getElementById('dm_urgn').value=d.urgent_note;document.getElementById('dm_rtime').value=d.remind_time;document.getElementById('dm_memo').value=d.memo;document.getElementById('dm_del').style.display='block';openModal('dModal')}
+async function saveDeliv(){const id=document.getElementById('dm_id').value;const d={project_id:+document.getElementById('dm_pid').value,type:document.getElementById('dm_type').value,spec:document.getElementById('dm_spec').value,due_date:document.getElementById('dm_due').value,designer:document.getElementById('dm_des').value,coder:document.getElementById('dm_cod').value,outsource_name:document.getElementById('dm_oname').value,outsource_status:document.getElementById('dm_out').value,outsource_amount:+document.getElementById('dm_oamt').value||0,outsource_backlog_url:document.getElementById('dm_obl').value,outsource_zac_url:document.getElementById('dm_ozac').value,urgent:document.getElementById('dm_urg').checked?1:0,urgent_note:document.getElementById('dm_urgn').value,remind_time:document.getElementById('dm_rtime').value,memo:document.getElementById('dm_memo').value};if(!id)d.phase='未着手';await fetch(id?`/api/deliverables/${id}`:'/api/deliverables',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});closeModal('dModal');toast('保存');loadProj();loadDash()}
 async function delDeliv(){if(!confirm('削除？'))return;await fetch(`/api/deliverables/${document.getElementById('dm_id').value}`,{method:'DELETE'});closeModal('dModal');toast('削除');loadProj()}
 
 // ===== Gantt =====
@@ -1639,7 +1759,7 @@ setInterval(async()=>{
     // fieldベースで判定（ダッシュボード/案件管理共用）
     const EDITABLE_FIELDS=new Set(['phase','ball','progress']);
     const INLINE_EDIT_FIELDS=new Set(['ball','progress']);
-    const ACTION_FIELDS={'memo':'memo'}; // due_dateはワンクリックで開く
+    const ACTION_FIELDS={}; // 特殊アクション列なし
 
     // --- Undo/Redo ---
     const undoStack=[], redoStack=[];
@@ -1859,7 +1979,7 @@ setInterval(async()=>{
 
     // --- Event Listeners ---
     document.addEventListener('click',function(e){
-        if(e.target.closest('.done-cb')||e.target.closest('.ph-pill')||e.target.closest('.ph-menu')||e.target.closest('.btn-s')||e.target.closest('.lnk-edit')||e.target.closest('.link-pop')||e.target.closest('.out-toggle')||e.target.closest('.ph-mi')||e.target.closest('.out-edit'))return;
+        if(e.target.closest('.done-cb')||e.target.closest('.ph-pill')||e.target.closest('.ph-menu')||e.target.closest('.btn-s')||e.target.closest('.lnk-edit')||e.target.closest('.link-pop')||e.target.closest('.out-toggle')||e.target.closest('.ph-mi')||e.target.closest('.out-edit')||e.target.closest('.due-note')||e.target.closest('.time-pick')||e.target.closest('.tp-menu'))return;
         // 開いているメニューを閉じる
         document.querySelectorAll('.ph-menu.on').forEach(m=>m.classList.remove('on'));
         document.querySelectorAll('.out-menu.on').forEach(m=>m.classList.remove('on'));
@@ -1871,7 +1991,7 @@ setInterval(async()=>{
         else if(e.metaKey||e.ctrlKey){selectCell(td,true)}
         else{selectCell(td)}
         // 日付セルはクリックで即date picker
-        if(td.dataset.field==='due_date'){const inp=td.querySelector('input[type=date]');if(inp)inp.showPicker()}
+        if(td.dataset.field==='due_date'&&!e.target.closest('.time-pick')&&!e.target.closest('.tp-menu')){const inp=td.querySelector('input[type=date]');if(inp)inp.showPicker()}
     },true);
 
     document.addEventListener('dblclick',function(e){
@@ -1883,6 +2003,8 @@ setInterval(async()=>{
 
     document.addEventListener('keydown',function(e){
         if(document.querySelector('.modal-bg[style*="flex"]'))return;
+        // due-note編集中はスルー
+        if(document.activeElement&&document.activeElement.classList.contains('due-note'))return;
         const meta=e.metaKey||e.ctrlKey;
 
         // Undo/Redo (works always, even without cell selection)
