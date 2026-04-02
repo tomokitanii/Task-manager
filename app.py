@@ -381,16 +381,21 @@ def create_project():
 def update_project(pid):
     db = get_db()
     d = request.get_json()
-    db.execute("""UPDATE projects SET name=?, zac_number=?, zac_url=?, backlog_url=?,
-                  backlog_url_outsource=?, drive_url=?, drive_url_outsource=?,
-                  closing_month=?, status=?, purchased=?, figma_stored=?, sales_person=?, memo=?
-                  WHERE id=?""",
-               (d["name"], d.get("zac_number", ""), d.get("zac_url", ""),
-                d.get("backlog_url", ""),
-                d.get("backlog_url_outsource", ""), d.get("drive_url", ""),
-                d.get("drive_url_outsource", ""), d.get("closing_month", ""),
-                d.get("status", "進行中"), d.get("purchased", 0),
-                d.get("figma_stored", 0), d.get("sales_person", ""), d.get("memo", ""), pid))
+    # 送られたフィールドだけ更新（部分更新対応）
+    allowed = ["name", "zac_number", "zac_url", "backlog_url",
+               "backlog_url_outsource", "drive_url", "drive_url_outsource",
+               "closing_month", "status", "purchased", "figma_stored",
+               "sales_person", "memo", "sort_order"]
+    sets = []
+    vals = []
+    for col in allowed:
+        if col in d:
+            sets.append(f"{col}=?")
+            vals.append(d[col])
+    if not sets:
+        return jsonify({"ok": True})
+    vals.append(pid)
+    db.execute(f"UPDATE projects SET {','.join(sets)} WHERE id=?", vals)
     db.commit()
     return jsonify({"ok": True})
 
@@ -501,28 +506,42 @@ def update_deliverable(did):
     new_phase = d.get("phase", old["phase"])
     assignee = d.get("designer", old["designer"]) or d.get("coder", old["coder"]) or ""
 
-    # フェーズが変わったらボールを自動更新
+    # フェーズが変わったらボールを自動更新（複数フェーズ時は各フェーズのボールを・結合）
     if new_phase != old["phase"]:
-        ball = PHASE_BALL_MAP.get(new_phase, "自分")
-        if ball == "__designer__":
-            ball = old["designer"] or "自分"
-        elif ball == "__coder__":
-            ball = old["coder"] or "自分"
-        elif ball == "__inspector__":
-            ball = "検品チーム"
-        elif ball == "__sales__":
-            proj = db.execute("SELECT sales_person FROM projects WHERE id=?", (old["project_id"],)).fetchone()
-            ball = (proj["sales_person"] if proj and proj["sales_person"] else "") or "営業"
-        elif ball == "" and assignee:
-            ball = assignee
-        elif ball == "":
-            ball = "自分"
+        phases = new_phase.split("・") if "・" in new_phase else [new_phase]
+        proj_cache = None
+        balls = []
+        for ph in phases:
+            b = PHASE_BALL_MAP.get(ph, "自分")
+            if b == "__designer__":
+                b = old["designer"] or "自分"
+            elif b == "__coder__":
+                b = old["coder"] or "自分"
+            elif b == "__inspector__":
+                b = "検品チーム"
+            elif b == "__sales__":
+                if proj_cache is None:
+                    proj_cache = db.execute("SELECT sales_person FROM projects WHERE id=?", (old["project_id"],)).fetchone()
+                b = (proj_cache["sales_person"] if proj_cache and proj_cache["sales_person"] else "") or "営業"
+            elif b == "" and assignee:
+                b = assignee
+            elif b == "":
+                b = "自分"
+            balls.append(b)
+        # 重複除去（順序維持）
+        seen = set()
+        unique_balls = []
+        for b in balls:
+            if b not in seen:
+                seen.add(b)
+                unique_balls.append(b)
+        ball = "・".join(unique_balls)
         ball_since = date.today().isoformat()
     else:
         ball = d.get("ball", old["ball"])
         ball_since = d.get("ball_since", old["ball_since"])
 
-    done = 1 if new_phase == "完了" else d.get("done", old["done"])
+    done = 1 if new_phase == "完了" else (0 if old["done"] and new_phase != "完了" and "phase" in d else d.get("done", old["done"]))
 
     db.execute("""UPDATE deliverables SET type=?, spec=?, phase=?, due_date=?, ball=?, ball_since=?,
                   designer=?, coder=?, sales_person=?, outsource_name=?, outsource_amount=?, outsource_zac_url=?, outsource_backlog_label=?, outsource_status=?, outsource_backlog_url=?,

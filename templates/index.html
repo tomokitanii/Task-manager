@@ -47,12 +47,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 .tbl [contenteditable]:focus{background:#fff;outline:none}
 
 /* Phase pill */
-.ph-pill{display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;position:relative;user-select:none;letter-spacing:.2px;white-space:nowrap}
-.ph-pill:hover{filter:brightness(.9)}
-.ph-menu{position:absolute;top:110%;left:0;background:#fff;border:1px solid #e0e0e0;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;min-width:150px;padding:3px 0;display:none}
+.ph-pill{display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;position:relative;user-select:none;letter-spacing:.2px;white-space:nowrap;background:#f5f5f5}
+.ph-pill:hover{filter:brightness(.92)}
+.ph-menu{position:absolute;top:110%;left:0;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;min-width:170px;padding:4px 0;display:none;max-height:340px;overflow-y:auto}
 .ph-menu.on{display:block}
-.ph-mi{padding:5px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px}
+.ph-grp{padding:6px 12px 2px;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid #f0f0f0}
+.ph-grp:first-child{border-top:none}
+.ph-mi{padding:5px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;transition:background .1s}
 .ph-mi:hover{background:#f5f5f5}
+.ph-mi-on{background:#e8f0fe}
+.ph-mi-on:hover{background:#d2e3fc}
+.ph-chk{margin-left:auto;font-size:12px;color:#1a73e8;font-weight:700}
 .ph-dot{width:7px;height:7px;border-radius:50%}
 
 /* Out status pill */
@@ -416,17 +421,49 @@ a.ext:hover{text-decoration:underline;color:#1557b0}
 <script>
 const TABS=['dash','proj','gantt','monthly','daily'];
 // フェーズ定義（成果物タイプ別）
-const PHASES_BASE=['未着手','見積中','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','請求処理','完了'];
-const PHASES_LP=['未着手','見積中','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','公開','請求処理','完了'];
-const PHASES_MAIL=['未着手','見積中','素材待ち','構成','発注','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','事務局確認','配信','請求処理','完了'];
-const PHASES_VIDEO=['未着手','見積中','素材待ち','構成','発注','ナレーション','デザイン','コーディング','校正','検品','社内確認','先方確認','最終確認','修正','FIX','入稿','請求処理','完了'];
+// フェーズ: グループ分け定義
+const PH_GROUPS_BASE=[
+    {label:'準備',items:['未着手','見積中','素材待ち','構成']},
+    {label:'制作',items:['デザイン','コーディング','修正','FIX']},
+    {label:'確認',items:['校正','検品','社内確認','先方確認','最終確認']},
+    {label:'納品・事務',items:['発注','入稿','請求処理','完了']}
+];
+const PH_GROUPS_LP=[
+    {label:'準備',items:['未着手','見積中','素材待ち','構成']},
+    {label:'制作',items:['デザイン','コーディング','修正','FIX']},
+    {label:'確認',items:['校正','検品','社内確認','先方確認','最終確認']},
+    {label:'納品・事務',items:['発注','入稿','公開','請求処理','完了']}
+];
+const PH_GROUPS_MAIL=[
+    {label:'準備',items:['未着手','見積中','素材待ち','構成']},
+    {label:'制作',items:['デザイン','コーディング','修正','FIX']},
+    {label:'確認',items:['校正','検品','社内確認','先方確認','最終確認']},
+    {label:'納品・事務',items:['発注','入稿','事務局確認','配信','請求処理','完了']}
+];
+const PH_GROUPS_VIDEO=[
+    {label:'準備',items:['未着手','見積中','素材待ち','構成']},
+    {label:'制作',items:['ナレーション','デザイン','コーディング','修正','FIX']},
+    {label:'確認',items:['校正','検品','社内確認','先方確認','最終確認']},
+    {label:'納品・事務',items:['発注','入稿','請求処理','完了']}
+];
+function getPhGroupsForType(type){
+    if(type==='LP')return PH_GROUPS_LP;
+    if(type==='メルマガ')return PH_GROUPS_MAIL;
+    if(type==='動画')return PH_GROUPS_VIDEO;
+    return PH_GROUPS_BASE;
+}
+// フラット配列も互換用に維持
+const PHASES_BASE=PH_GROUPS_BASE.flatMap(g=>g.items);
+const PHASES_LP=PH_GROUPS_LP.flatMap(g=>g.items);
+const PHASES_MAIL=PH_GROUPS_MAIL.flatMap(g=>g.items);
+const PHASES_VIDEO=PH_GROUPS_VIDEO.flatMap(g=>g.items);
 function getPhasesForType(type){
     if(type==='LP')return PHASES_LP;
     if(type==='メルマガ')return PHASES_MAIL;
     if(type==='動画')return PHASES_VIDEO;
     return PHASES_BASE;
 }
-const PHASES=PHASES_LP; // fallback for dashboard
+const PHASES=PHASES_LP;
 const PH_DOTS={'未着手':'#999','見積中':'#f5a623','素材待ち':'#f5a623','構成':'#4a90d9','発注':'#e53935','請求処理':'#f5a623','ナレーション':'#9c27b0','デザイン':'#d45d79','校正':'#e6a817','検品':'#e6a817','社内確認':'#e6a817','先方確認':'#f5a623','最終確認':'#f5a623','修正':'#d45d79','FIX':'#4caf50','コーディング':'#4a90d9','入稿':'#4caf50','公開':'#2e7d32','事務局確認':'#f5a623','配信':'#2e7d32','完了':'#ccc'};
 const OUT_OPTS=['','社内','見積中','発注前','発注申請中','発注済','請求書待','仕入済'];
 let curClient=null,memoTargetId=null;
@@ -492,10 +529,48 @@ function dueHtml(dd){
     if(diff<=3)return`<span style="color:#e65100;font-weight:600">${lb}</span>`;
     return`<span>${lb}</span>`}
 
-// ===== Phase cell (inline) =====
+// ===== Phase cell (inline, multi-select + grouped) =====
 function phCell(did,ph,dtype){
-    const phases=dtype?getPhasesForType(dtype):PHASES;
-    return`<div style="position:relative;display:inline-block"><span class="ph-pill pc-${ph}" onclick="event.stopPropagation();this.nextElementSibling.classList.toggle('on')">${ph} ▾</span><div class="ph-menu">${phases.map(p=>`<div class="ph-mi" onclick="upD(${did},'phase','${p}')"><span class="ph-dot" style="background:${PH_DOTS[p]||'#999'}"></span>${p}</div>`).join('')}</div></div>`}
+    const groups=dtype?getPhGroupsForType(dtype):PH_GROUPS_LP;
+    const selected=new Set((ph||'').split('・').filter(Boolean));
+    const pillColor=selected.size===1?PH_DOTS[[...selected][0]]||'#999':'#555';
+    const uid='ph_'+did+'_'+Math.random().toString(36).slice(2,6);
+    let menuH='';
+    groups.forEach(g=>{
+        menuH+=`<div class="ph-grp">${g.label}</div>`;
+        g.items.forEach(p=>{
+            const checked=selected.has(p);
+            menuH+=`<div class="ph-mi${checked?' ph-mi-on':''}" data-phase="${p}" onclick="event.stopPropagation();togglePhase('${uid}',${did},'${p}')"><span class="ph-dot" style="background:${PH_DOTS[p]||'#999'}"></span>${p}<span class="ph-chk">${checked?'✓':''}</span></div>`;
+        });
+    });
+    return`<div style="position:relative;display:inline-block" id="${uid}_wrap"><span class="ph-pill" style="border-left:3px solid ${pillColor}" onclick="event.stopPropagation();this.nextElementSibling.classList.toggle('on')">${ph||'未着手'} ▾</span><div class="ph-menu">${menuH}</div></div>`}
+
+function togglePhase(uid,did,phase){
+    const wrap=document.getElementById(uid+'_wrap');
+    const menu=wrap.querySelector('.ph-menu');
+    const items=menu.querySelectorAll('.ph-mi');
+    // 現在の選択状態を取得
+    const sel=new Set();
+    items.forEach(el=>{if(el.classList.contains('ph-mi-on'))sel.add(el.dataset.phase)});
+    // トグル
+    if(sel.has(phase))sel.delete(phase);else sel.add(phase);
+    // UI更新
+    items.forEach(el=>{
+        const on=sel.has(el.dataset.phase);
+        el.classList.toggle('ph-mi-on',on);
+        el.querySelector('.ph-chk').textContent=on?'✓':'';
+    });
+    // pill更新
+    const allPhases=PH_GROUPS_LP.flatMap(g=>g.items);
+    const sorted=[...sel].sort((a,b)=>allPhases.indexOf(a)-allPhases.indexOf(b));
+    const val=sorted.join('・')||'';
+    const pill=wrap.querySelector('.ph-pill');
+    const pillColor=sorted.length===1?PH_DOTS[sorted[0]]||'#999':'#555';
+    pill.style.borderLeftColor=pillColor;
+    pill.innerHTML=(val||'未着手')+' ▾';
+    // DB保存
+    upD(did,'phase',val);
+}
 
 function ballCell(did,ball,designer,coder){
     const opts=new Set(['自分','先方','検品チーム']);
@@ -561,7 +636,7 @@ async function loadDash(){
     // #8: 今月締め
     if(d.closing_this_month&&d.closing_this_month.length){h+=`<div class="dsec" style="border-left:4px solid #fb8c00"><div class="dsec-t"><span class="dot" style="background:#fb8c00"></span>今月締め<span class="cnt">${d.closing_this_month.length}</span></div>`;d.closing_this_month.forEach(p=>{h+=`<div style="padding:4px 10px;font-size:12px;cursor:pointer;color:#1a73e8" onclick="goToProj(${p.id})">${p.client_name} — ${p.name}</div>`});h+='</div>'}
 
-    document.getElementById('dashC').innerHTML=h}
+    if(window._cellSaveSel)window._cellSaveSel();document.getElementById('dashC').innerHTML=h;if(window._cellRestoreSel)window._cellRestoreSel()}
 
 function specLabel(t){return t.spec?'('+t.spec+')':''}
 function esc(s){return(s||'').replace(/'/g,"\\'").replace(/\n/g,"\\n")}
@@ -782,7 +857,7 @@ async function loadProj(){
             h+='</div></div>';}
         h+='</div>';}
     if(!Object.keys(grouped).length)h='<div class="empty">'+(projFilter==='done'?'完了した案件はありません':'進行中の案件はありません')+'</div>';
-    document.getElementById('projC').innerHTML=h}
+    if(window._cellSaveSel)window._cellSaveSel();document.getElementById('projC').innerHTML=h;if(window._cellRestoreSel)window._cellRestoreSel()}
 
 // ===== Link helpers =====
 function linkIcon(type){
@@ -804,11 +879,17 @@ function toggleLinkPop(uid,url,name){
 async function saveLinkPop(uid,type,id){
     const url=document.getElementById(uid+'_url').value.trim();
     const name=document.getElementById(uid+'_name').value.trim();
-    if(type==='proj_zac'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',zac_number:name.replace('zac:',''),zac_url:url})})}
-    else if(type==='proj_bl'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',backlog_url:url})})}
-    else if(type==='proj_blo'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',backlog_url_outsource:url})})}
-    else if(type==='proj_drv'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',drive_url:url})})}
-    else if(type==='proj_drvo'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',drive_url_outsource:url})})}
+    // プロジェクト系はAPIから現在の名前を取得してPUT
+    if(type.startsWith('proj_')){
+        const ps=await(await fetch('/api/projects')).json();
+        const p=ps.find(x=>x.id===id);
+        const pname=p?p.name:'';
+        if(type==='proj_zac')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,zac_number:name.replace('zac:',''),zac_url:url})});
+        else if(type==='proj_bl')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,backlog_url:url})});
+        else if(type==='proj_blo')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,backlog_url_outsource:url})});
+        else if(type==='proj_drv')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,drive_url:url})});
+        else if(type==='proj_drvo')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,drive_url_outsource:url})});
+    }
     else if(type==='deliv_bl'){await fetch('/api/deliverables/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({outsource_backlog_url:url,outsource_backlog_label:name})})}
     else if(type==='link'){await fetch('/api/project-links/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:name,url:url})})}
     document.getElementById(uid).classList.remove('on');
@@ -816,11 +897,16 @@ async function saveLinkPop(uid,type,id){
 }
 async function delLinkPop(type,id){
     if(!confirm('このリンクを削除しますか？'))return;
-    if(type==='proj_zac'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',zac_number:'',zac_url:''})})}
-    else if(type==='proj_bl'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',backlog_url:''})})}
-    else if(type==='proj_blo'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',backlog_url_outsource:''})})}
-    else if(type==='proj_drv'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',drive_url:''})})}
-    else if(type==='proj_drvo'){await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.querySelector('#pd-'+id+' .proj-title')?.textContent||'',drive_url_outsource:''})})}
+    if(type.startsWith('proj_')){
+        const ps=await(await fetch('/api/projects')).json();
+        const p=ps.find(x=>x.id===id);
+        const pname=p?p.name:'';
+        if(type==='proj_zac')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,zac_number:'',zac_url:''})});
+        else if(type==='proj_bl')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,backlog_url:''})});
+        else if(type==='proj_blo')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,backlog_url_outsource:''})});
+        else if(type==='proj_drv')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,drive_url:''})});
+        else if(type==='proj_drvo')await fetch('/api/projects/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:pname,drive_url_outsource:''})});
+    }
     else if(type==='deliv_bl'){await fetch('/api/deliverables/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({outsource_backlog_url:''})})}
     else if(type==='link'){await fetch('/api/project-links/'+id,{method:'DELETE'})}
     toast('削除');loadProj();
@@ -1825,7 +1911,27 @@ setInterval(async()=>{
     }
 
     // --- Selection ---
-    function clearSel(){selCells.forEach(c=>c.classList.remove('cell-sel'));selCells.clear();if(selCell)selCell.classList.remove('cell-sel','cell-edit');selCell=null}
+    function clearSel(keepPersist){selCells.forEach(c=>c.classList.remove('cell-sel'));selCells.clear();if(selCell)selCell.classList.remove('cell-sel','cell-edit');selCell=null;if(!keepPersist){_savedSel={primary:null,multi:[]}}}
+
+    // セル選択状態を永続的に保存（DOM再構築後も復元可能）
+    let _savedSel={primary:null,multi:[]};
+    function _persistSel(){
+        _savedSel.primary=selCell?{did:selCell.dataset.did,field:selCell.dataset.field}:null;
+        _savedSel.multi=[...selCells].map(c=>({did:c.dataset.did,field:c.dataset.field}));
+    }
+    // グローバル公開：loadProj/loadDash内から呼べるように
+    window._cellSaveSel=function(){_persistSel()};
+    window._cellRestoreSel=function(){
+        if(!_savedSel.primary)return;
+        const findCell=(did,field)=>document.querySelector(`td[data-did="${did}"][data-field="${field}"]`);
+        const pTd=findCell(_savedSel.primary.did,_savedSel.primary.field);
+        if(!pTd)return;
+        selCell=pTd;
+        pTd.classList.add('cell-sel');
+        selCells.clear();
+        _savedSel.multi.forEach(s=>{const td=findCell(s.did,s.field);if(td){td.classList.add('cell-sel');selCells.add(td)}});
+        if(!selCells.size)selCells.add(pTd);
+    };
 
     function selectCell(td,addToSel){
         if(editMode)commitEdit();
@@ -1834,6 +1940,7 @@ setInterval(async()=>{
         if(!td)return;
         td.classList.add('cell-sel');
         selCells.add(td);
+        _persistSel();
         td.scrollIntoView({block:'nearest'});
     }
 
@@ -1844,11 +1951,12 @@ setInterval(async()=>{
         if(r1<0||r2<0)return;
         const rMin=Math.min(r1,r2),rMax=Math.max(r1,r2);
         const cMin=Math.min(c1,c2),cMax=Math.max(c1,c2);
-        clearSel();
+        clearSel(true);
         for(let r=rMin;r<=rMax;r++)for(let c=cMin;c<=cMax;c++){
             if(grid[r]&&grid[r][c]){grid[r][c].classList.add('cell-sel');selCells.add(grid[r][c])}
         }
         selCell=to;
+        _persistSel();
     }
 
     // --- Edit ---
